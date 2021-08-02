@@ -35,6 +35,7 @@ class SimpleIndexer(Executor):
         self._docs = DocumentArrayMemmap(self.workspace + f'/{index_file_name}')
         self.default_traversal_paths = default_traversal_paths or ['r']
         self.default_top_k = default_top_k
+        self.distance_metric = distance_metric
         if distance_metric == 'cosine':
             self.distance = _cosine
         elif distance_metric == 'euclidean':
@@ -57,8 +58,8 @@ class SimpleIndexer(Executor):
         :param docs: the docs to add
         :param parameters: the parameters dictionary
         """
-        traversal_path = parameters.get('traversal_paths', self.default_traversal_paths)
-        flat_docs = docs.traverse_flat(traversal_path)
+        traversal_paths = parameters.get('traversal_paths', self.default_traversal_paths)
+        flat_docs = docs.traverse_flat(traversal_paths)
         self._docs.extend(flat_docs)
         self._flush = True
 
@@ -68,9 +69,9 @@ class SimpleIndexer(Executor):
 
         :param docs: the Documents to search with
         :param parameters: the parameters for the search"""
-        traversal_path = parameters.get('traversal_paths', self.default_traversal_paths)
+        traversal_paths = parameters.get('traversal_paths', self.default_traversal_paths)
         top_k = parameters.get('top_k', self.default_top_k)
-        flat_docs = docs.traverse_flat(traversal_path)
+        flat_docs = docs.traverse_flat(traversal_paths)
         a = np.stack(flat_docs.get_attributes('embedding'))
         b = self.index_embeddings
         q_emb = _ext_A(_norm(a))
@@ -80,7 +81,7 @@ class SimpleIndexer(Executor):
         for _q, _ids, _dists in zip(flat_docs, idx, dist):
             for _id, _dist in zip(_ids, _dists):
                 d = Document(self._docs[int(_id)], copy=True)
-                d.scores['cosine'] = 1 - _dist
+                d.scores[self.distance_metric] = 1 - _dist
                 _q.matches.append(d)
 
     @staticmethod
